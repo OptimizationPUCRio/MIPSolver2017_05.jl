@@ -1,49 +1,56 @@
 # ------------------------------------------------------------------
 using JuMP
 
-mutable struct root
-  model::JuMP.Model
-  leftChild::node
-  rightChild::node
-end
-
 mutable struct node
   level::Int
   model::JuMP.Model
-  father::node
-  leftChild::node
-  rightChild::node
 end
 
+## Receives a pure binary JuMP model
 function branch_and_bound(model::JuMP.Model)
 
   status = solve(model, relaxation=true)
   if status != :Optimal
-    println("Erro no problema: relaxação não convergiu.")
+    println("Error: relaxation did not converge.")
     return false
   end
 
   isZero = model.colVal .== 0
   isOne  = model.colVal .== 1
   if sum(isZero + isOne) == model.numCols
-    # Solução relaxada é binária
+    # Relaxed solution is binary: optimal solution
     return model
   end
 
-  opt = false
-  nvars = model.numCols
-  nodeSet = Set{node}
+  model.colCat[:] = :Cont
+  nodes = Vector{node}(1)
+  nodes[1] = node(0, model) # root
 
-  # Nó raiz
-  JuMP.setcategory()
-  root = root(model, model)
-
-  # Branch
-
-end
-
-## Recebe o modelo JuMP de um problema binário puro.
-function branch(model::JuMP.Model)
+  while !isempty(nodes) || currentNode.level <= log2(nvars)+1
+    solve(nodes[1].model)
+    (leftChild, rightChild) = branch(nodes[1])
+    nodes = deleteat!(nodes, 1)
+    nodes = push!(nodes, leftChild)
+    nodes = push!(nodes, rightChild)
+  end
 
   return false
+end
+
+## Receives node and creates two children by setting a variable to 0 and 1 respectively
+function branch(currentNode::node)
+  indToSet = indmax(currentNode.model.colUpper - currentNode.model.colLower)
+
+  leftModel = copy(currentNode.model)
+  leftModel.colUpper[indToSet] = 0
+  leftModel.colLower[indToSet] = 0
+
+  rightModel = copy(currentNode.model)
+  rightModel.colUpper[indToSet] = 1
+  rightModel.colLower[indToSet] = 1
+
+  leftChild = node(currentNode.level+1, leftModel)
+  rightChild = node(currentNode.level+1, rightModel)
+
+  return leftChild, rightChild
 end
