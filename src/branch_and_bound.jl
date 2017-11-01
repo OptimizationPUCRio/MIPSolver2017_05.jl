@@ -9,29 +9,20 @@ end
 ## Receives a pure binary JuMP model
 function branch_and_bound(model::JuMP.Model)
 
-  status = solve(model, relaxation=true)
-  if status != :Optimal
-    println("Error: relaxation did not converge.")
-    return false
-  end
-
-  isZero = model.colVal .== 0
-  isOne  = model.colVal .== 1
-  if sum(isZero + isOne) == model.numCols
-    # Relaxed solution is binary: optimal solution
-    return model
-  end
-
   model.colCat[:] = :Cont
   nodes = Vector{node}(1)
   nodes[1] = node(0, model) # root
 
   while !isempty(nodes) || currentNode.level <= log2(nvars)+1
     solve(nodes[1].model)
-    (leftChild, rightChild) = branch(nodes[1])
-    nodes = deleteat!(nodes, 1)
-    nodes = push!(nodes, leftChild)
-    nodes = push!(nodes, rightChild)
+    if isBinary(nodes[1].model)
+
+    else
+      (leftChild, rightChild) = branch(nodes[1])
+      nodes = deleteat!(nodes, 1)
+      nodes = push!(nodes, leftChild)
+      nodes = push!(nodes, rightChild)
+    end
   end
 
   return false
@@ -53,4 +44,14 @@ function branch(currentNode::node)
   rightChild = node(currentNode.level+1, rightModel)
 
   return leftChild, rightChild
+end
+
+function isBinary(model::JuMP.Model)
+  isZero = model.colVal .== 0
+  isOne  = model.colVal .== 1
+  if sum(isZero + isOne) == model.numCols
+    # Relaxed solution is binary: optimal solution
+    return true
+  end
+  return false
 end
