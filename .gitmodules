@@ -1,0 +1,3 @@
+[submodule "MIPTests.jl"]
+	path = MIPTests.jl
+	url = ../MIPTests.jl
