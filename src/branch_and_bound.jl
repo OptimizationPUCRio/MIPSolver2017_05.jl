@@ -1,5 +1,4 @@
 # ------------------------------------------------------------------
-using JuMP
 
 mutable struct node
   level::Int
@@ -18,21 +17,22 @@ end
 
 ## Checks if model is max: if it is, converts to min
 function convertSense!(m::JuMP.Model)
-  model = deepcopy(m)
-  if model.objSense == :Max
-    model.objSense = :Min
-    model.obj = -model.obj
+  if m.objSense == :Max
+    m.objSense = :Min
+    m.obj = -m.obj
   else
-    model.objSense = :Max
-    model.obj = -model.obj
+    m.objSense = :Max
+    m.obj = -m.obj
   end
-  return model
 end
 
 ## Receives node and creates two children by setting a variable to 0 and 1 respectively
 function branch(currentNode::node, binaryIndices::Vector{Int64})
-  # indToSet = indmax(currentNode.model.colUpper - currentNode.model.colLower)
-  indToSet = binaryIndices[currentNode.level+1]
+
+  isNotZero = currentNode.model.colVal[binaryIndices] .!= 0
+  isNotOne  = currentNode.model.colVal[binaryIndices] .!= 1
+  firstFrac = find(isNotZero .& isNotOne)[1]
+  indToSet = binaryIndices[firstFrac]
 
   leftModel = deepcopy(currentNode.model)
   leftModel.colUpper[indToSet] = 0
@@ -48,13 +48,13 @@ function branch(currentNode::node, binaryIndices::Vector{Int64})
   return leftChild, rightChild
 end
 
-## Receives a pure binary JuMP model
+## Receives a pure binary or mixed binary linear JuMP model
 function solveMIP(m::JuMP.Model)
 
   # Check if model is max; if it is, converts to min
   flagConverted = 0
   if m.objSense == :Max
-    m = convertSense!(m)
+    convertSense!(m)
     flagConverted = 1
   end
 
@@ -70,35 +70,44 @@ function solveMIP(m::JuMP.Model)
   nodes[1] = node(0, m) # root
 
   iter = 0
+  flagOpt = 0
+  status = 0
   while !isempty(nodes)
     status = solve(nodes[1].model)
-    if status == :Infeasible
-      # Relaxed problem is infeasible -- don't branch
-    elseif isBinary(nodes[1].model, binaryIndices) && status == :Optimal
+    if status != :Optimal
+      # Relaxed problem is infeasible or unbounded -- don't branch
+    elseif isBinary(nodes[1].model, binaryIndices)
       # Relaxed solution is binary: optimal solution -- don't branch
       if nodes[1].model.objVal < bestLB
+        flagOpt = 1
         bestLB = nodes[1].model.objVal
-        m = deepcopy(nodes[1].model)
+        opt = deepcopy(nodes[1].model)
+        m.colVal = opt.colVal
       end
     else
       # Relaxed solution is not optimal -- branch
       (leftChild, rightChild) = branch(nodes[1], binaryIndices)
-      nodes = push!(nodes, leftChild)
-      nodes = push!(nodes, rightChild)
+      push!(nodes, leftChild)
+      push!(nodes, rightChild)
     end
-    nodes = deleteat!(nodes, 1)
+    deleteat!(nodes, 1)
     iter+=1
   end
 
-  # Check if model was converted; if it was, convert back to original sense
   if flagConverted == 1
-    m = convertSense!(m)
-    status = solve(m)
+    convertSense!(m)
+    m.objVal = -bestLB
   else
-    status = solve(m)
+    m.objVal = bestLB
   end
 
-  m.ext[:status] = status
+  if flagOpt == 0
+    m.ext[:status] = status
+  else
+    m.ext[:status] = :Optimal
+  end
 
-  return status
+  println("Número de iterações: $iter")
+
+  return m.ext[:status]
 end
