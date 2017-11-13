@@ -51,6 +51,8 @@ end
 ## Receives a pure binary or mixed binary linear JuMP model
 function solveMIP(m::JuMP.Model)
 
+  tic()
+
   # Check if model is max; if it is, converts to min
   flagConverted = 0
   if m.objSense == :Max
@@ -58,56 +60,82 @@ function solveMIP(m::JuMP.Model)
     flagConverted = 1
   end
 
-  # Best lower bound: start as Inf
-  bestLB = Inf
+  # Best bounds: start as Inf
+  bestBound = -Inf
+  bestVal = Inf
+  bestLevelBound = -Inf
 
   # Create vector of indices of the binary variables
   binaryIndices = find(m.colCat .== :Bin)
 
-  # Relax all variables and create branch and bound tree
+  # Relax all variables; solve relaxed problem
   m.colCat[:] = :Cont
-  nodes = Vector{node}(1)
-  nodes[1] = node(0, m) # root
-
+  status = solve(m)
+  if status == :Optimal && isBinary(m, binaryIndices)
+    # Solution of the relaxed problem is binary: optimal solution
+    nodes = Vector{node}(0)
+    bestBound = m.objVal
+    bestVal = m.objVal
+  else
+    # Create branch and bound tree
+    nodes = Vector{node}(1)
+    nodes[1] = node(0, m) # root
+    lastNodeLevel = 0
+  end
   iter = 0
-  flagOpt = 0
-  status = 0
+
+  tol = 1e-6
   while !isempty(nodes)
+    if iter == 0
+      iter = 1
+      continue
+    end
+    if abs(bestVal - bestBound) < tol
+      break
+    end
     status = solve(nodes[1].model)
     if status != :Optimal
       # Relaxed problem is infeasible or unbounded -- don't branch
     elseif isBinary(nodes[1].model, binaryIndices)
       # Relaxed solution is binary: optimal solution -- don't branch
-      if nodes[1].model.objVal < bestLB
-        flagOpt = 1
-        bestLB = nodes[1].model.objVal
-        opt = deepcopy(nodes[1].model)
-        m.colVal = opt.colVal
+      if nodes[1].model.objVal < bestVal
+        bestVal = nodes[1].model.objVal
+        m.colVal = copy(nodes[1].model.colVal)
+      end
+      if nodes[1].level != lastNodeLevel
+        # Entered new level -- create new best level bound
+        bestLevelBound = nodes[1].model.objVal
+      elseif nodes[1].model.objVal > bestLevelBound
+        # Same level, better bound -- update current best level bound
+        bestLevelBound = nodes[1].model.objVal
       end
     else
-      # Relaxed solution is not optimal -- branch
+      # Optimal but not binary -- branch
+      if nodes[1].model.objVal > bestBound
+        bestBound = nodes[1].model.objVal
+      end
       (leftChild, rightChild) = branch(nodes[1], binaryIndices)
       push!(nodes, leftChild)
       push!(nodes, rightChild)
     end
+    lastNodeLevel = nodes[1].level
     deleteat!(nodes, 1)
     iter+=1
   end
 
   if flagConverted == 1
     convertSense!(m)
-    m.objVal = -bestLB
+    m.objVal = -bestVal
+    m.objBound = -bestBound
   else
-    m.objVal = bestLB
+    m.objVal = bestVal
+    m.objBound = bestBound
   end
 
-  if flagOpt == 0
-    m.ext[:status] = status
-  else
-    m.ext[:status] = :Optimal
-  end
-
-  println("Número de iterações: $iter")
+  m.ext[:status] = status
+  m.ext[:nodes] = iter
+  t = toc()
+  m.ext[:time] = t
 
   return m.ext[:status]
 end
