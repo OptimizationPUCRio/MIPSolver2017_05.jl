@@ -25,13 +25,13 @@ test_PL_Infeasible_Raphael(solveMIP, solver) # 1/1
 test_PL_Simples_Brito(solveMIP, solver) # 2/2
 test_PL_Simples_Raphael(solveMIP, solver) # 2/2
 test_PL_Unbounded_Brito(solveMIP, solver) # 1/1
-test_feature_selection_grande(solveMIP, solver)
-test_feature_selection_medio(solveMIP, solver)
-test_feature_selection_pequeno_inviavel(solveMIP, solver)
-test_feature_selection_pequeno_viavel(solveMIP, solver)
-teste_PL_andrew_inviavel(solveMIP, solver)
-teste_PL_andrew_unbounded(solveMIP, solver)
-teste_PL_andrew_viavel(solveMIP, solver)
+test_feature_selection_medio(solveMIP, solver) # 2/2
+test_feature_selection_pequeno_inviavel(solveMIP, solver) # 1/1
+test_feature_selection_pequeno_viavel(solveMIP, solver) # 2/2
+teste_PL_andrew_inviavel(solveMIP, solver) # 1/1
+teste_PL_andrew_unbounded(solveMIP, solver) # 1/1
+teste_PL_andrew_viavel(solveMIP, solver) # 3/3
 
-# Hard test
+# Hard tests
+test_feature_selection_grande(solveMIP, solver) # 2/2
 testRobustCCUC(solveMIP, solver)
