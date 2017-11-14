@@ -48,7 +48,7 @@ function branch(currentNode::node, binaryIndices::Vector{Int64})
   return leftChild, rightChild
 end
 
-## Receives a pure binary or mixed binary linear JuMP model
+## Receives a mixed binary linear JuMP model
 function solveMIP(m::JuMP.Model)
 
   tic()
@@ -85,13 +85,10 @@ function solveMIP(m::JuMP.Model)
   iter = 0
 
   tol = 1e-6
-  while !isempty(nodes)
+  while !isempty(nodes) && abs(bestVal - bestBound) > tol
     if iter == 0
       iter = 1
       continue
-    end
-    if abs(bestVal - bestBound) < tol
-      break
     end
     status = solve(nodes[1].model)
     if status != :Optimal
@@ -109,8 +106,8 @@ function solveMIP(m::JuMP.Model)
         # Same level, better bound -- update current best level bound
         bestLevelBound = nodes[1].model.objVal
       end
-    else
-      # Optimal but not binary -- branch
+    elseif nodes[1].model.objVal <= bestVal
+      # Relaxed solution is not binary and should not be pruned by limit -- branch
       if nodes[1].model.objVal > bestBound
         bestBound = nodes[1].model.objVal
       end
@@ -132,6 +129,10 @@ function solveMIP(m::JuMP.Model)
     m.objBound = bestBound
   end
 
+  # Return binary variables to original state
+  m.colCat[binaryIndices] = :Bin
+
+  # Outputs
   m.ext[:status] = status
   m.ext[:nodes] = iter
   t = toc()
