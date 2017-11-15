@@ -60,6 +60,7 @@ function updateBound(currentNode::node, lastNodeLevel::Int, levelBound::Float64,
     levelBound = currentNode.model.objVal
   end
 
+  return levelBound, bestBound
 end
 
 ## Receives a mixed binary linear JuMP model
@@ -107,6 +108,7 @@ function solveMIP(m::JuMP.Model)
     end
     status = solve(nodes[1].model)
     if status == :Optimal
+      levelBound, bestBound = pdateBound(nodes[1], lastNodeLevel, levelBound, bestBound)
       if isBinary(nodes[1].model, binaryIndices)
         # Relaxed solution is binary: optimal solution -- don't branch
         if nodes[1].model.objVal < bestVal
@@ -114,10 +116,8 @@ function solveMIP(m::JuMP.Model)
           m.colVal = copy(nodes[1].model.colVal)
           flagOpt = 1
         end
-        updateBound(nodes[1], lastNodeLevel, levelBound, bestBound)
       elseif nodes[1].model.objVal <= bestVal
         # Relaxed solution is not binary and should not be pruned by limit -- branch
-        updateBound(nodes[1], lastNodeLevel, levelBound, bestBound)
         (leftChild, rightChild) = branch(nodes[1], binaryIndices)
         push!(nodes, leftChild)
         push!(nodes, rightChild)
