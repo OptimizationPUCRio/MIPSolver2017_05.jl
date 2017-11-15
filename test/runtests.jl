@@ -1,16 +1,16 @@
-using Base.Test, JuMP, Gurobi
+using Base.Test, JuMP, CPLEX
 
 include("../MIPTests.jl/miptests.jl")
 include("../src/branch_and_bound.jl")
 
-solver = GurobiSolver()
+solver = CplexSolver()
 
 test1(solveMIP, solver) # 2/2
 test2(solveMIP, solver) # 2/2
 test3(solveMIP, solver) # 3/3
 test3_2(solveMIP, solver) # 1/1
 test3_3(solveMIP, solver) # 1/1
-testCaminho(solveMIP, solver) # teste tem erro
+testCaminho(solveMIP, solver) # 1/1
 testInfeasibleKnapsack(solveMIP, solver) # 1/1
 testInfeasibleUC(solveMIP, solver) # 1/1
 testSudoku(solveMIP, solver) # 8/8
@@ -19,7 +19,7 @@ testUnboundedKnapsack(solveMIP, solver) # 1/1
 test_MIP_Minimal_Brito(solveMIP, solver) # 3/3
 test_MIP_Pequeno_Brito(solveMIP, solver) # 3/3
 test_Minimal_UC(solveMIP, solver) # 3/3
-test_P1_Brito(solveMIP, solver) # 2/3, 1 fail
+test_P1_Brito(solveMIP, solver) # 3/3
 test_PL_Infeasible_Brito(solveMIP, solver) # 1/1
 test_PL_Infeasible_Raphael(solveMIP, solver) # 1/1
 test_PL_Simples_Brito(solveMIP, solver) # 2/2

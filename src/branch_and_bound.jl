@@ -108,7 +108,7 @@ function solveMIP(m::JuMP.Model)
     end
     status = solve(nodes[1].model)
     if status == :Optimal
-      levelBound, bestBound = pdateBound(nodes[1], lastNodeLevel, levelBound, bestBound)
+      levelBound, bestBound = updateBound(nodes[1], lastNodeLevel, levelBound, bestBound)
       if isBinary(nodes[1].model, binaryIndices)
         # Relaxed solution is binary: optimal solution -- don't branch
         if nodes[1].model.objVal < bestVal
