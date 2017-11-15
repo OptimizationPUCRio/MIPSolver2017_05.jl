@@ -1,4 +1,6 @@
-module
+module MIPSolver2017_05
+
+using JuMP
 
 export solveMIP
 
