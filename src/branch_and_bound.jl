@@ -103,7 +103,8 @@ function solveMIP(m::JuMP.Model)
 
   flagOpt = 0
   tol = 1e-5
-  while !isempty(nodes) && abs(bestVal - bestBound) > tol
+  jg_time0 = time_ns()
+  while !isempty(nodes) && abs(bestVal - bestBound) > tol && (time_ns()-jg_time0)/1e9 < 180
     if iter == 0
       iter = 1
       continue
