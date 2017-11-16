@@ -82,6 +82,7 @@ function solveMIP(m::JuMP.Model)
 
   # Create vector of indices of the binary variables
   binaryIndices = find(m.colCat .== :Bin)
+  binarySolutions = 0
 
   # Relax all variables; solve relaxed problem
   m.colCat[:] = :Cont
@@ -91,6 +92,7 @@ function solveMIP(m::JuMP.Model)
     nodes = Vector{node}(0)
     bestBound = m.objVal
     bestVal = m.objVal
+    binarySolutions = 1
   else
     # Create branch and bound tree
     nodes = Vector{node}(1)
@@ -115,6 +117,7 @@ function solveMIP(m::JuMP.Model)
           bestVal = nodes[1].model.objVal
           m.colVal = copy(nodes[1].model.colVal)
           flagOpt = 1
+          binarySolutions+=1
         end
       elseif nodes[1].model.objVal <= bestVal
         # Relaxed solution is not binary and should not be pruned by limit -- branch
@@ -149,6 +152,7 @@ function solveMIP(m::JuMP.Model)
     m.ext[:status] = :Optimal
   end
   m.ext[:nodes] = iter
+  m.ext[:solutions] = binarySolutions
   t = toc()
   m.ext[:time] = t
 
