@@ -29,10 +29,9 @@ end
 ## Receives node and creates two children by setting a variable to 0 and 1 respectively
 function branch(currentNode::node, binaryIndices::Vector{Int64})
 
-  isNotZero = currentNode.model.colVal[binaryIndices] .!= 0
-  isNotOne  = currentNode.model.colVal[binaryIndices] .!= 1
-  firstFrac = find(isNotZero .& isNotOne)[1]
-  indToSet = binaryIndices[firstFrac]
+  distance = abs(currentNode.model.colVal[binaryIndices] - 0.5)
+  indFrac = indmin(distance)
+  indToSet = binaryIndices[indFrac]
 
   leftModel = deepcopy(currentNode.model)
   leftModel.colUpper[indToSet] = 0
@@ -48,19 +47,13 @@ function branch(currentNode::node, binaryIndices::Vector{Int64})
   return leftChild, rightChild
 end
 
-## Updates best bound and level bound
-function updateBound(currentNode::node, lastNodeLevel::Int, levelBound::Float64, bestBound::Float64)
-
-  if currentNode.level != lastNodeLevel
-    # Entered new level -- create new level bound
-    bestBound = levelBound
-    levelBound = currentNode.model.objVal
-  elseif currentNode.model.objVal < levelBound
-    # Same level, worse bound -- update current level bound
-    levelBound = currentNode.model.objVal
+function obtainBoundList(nodeList::Vector{node})
+  boundList = Array{Float64}(length(nodes))
+  for i = 1 : length(nodes)
+    boundList[i] = nodes[i].model.objVal
   end
 
-  return levelBound, bestBound
+  return boundList
 end
 
 ## Receives a mixed binary linear JuMP model
@@ -76,9 +69,8 @@ function solveMIP(m::JuMP.Model)
   end
 
   # Best bounds: start as Inf
-  bestBound = -Inf
-  bestVal = Inf
-  levelBound = -Inf
+  bestBound = -1e200
+  bestVal = 1e200
 
   # Create vector of indices of the binary variables
   binaryIndices = find(m.colCat .== :Bin)
@@ -99,39 +91,45 @@ function solveMIP(m::JuMP.Model)
     nodes[1] = node(0, m) # root
     lastNodeLevel = 0
   end
-  iter = 0
 
+  iter = 0
   flagOpt = 0
   tol = 1e-5
-  while !isempty(nodes) && abs(bestVal - bestBound) > tol
+  time0 = time_ns()
+  while !isempty(nodes) && abs((bestVal - bestBound)/bestVal) > tol && (time_ns()-time0)/1e9 < 600
     if iter == 0
       iter = 1
       continue
     end
-    status = solve(nodes[1].model)
-    if status == :Optimal
-      levelBound, bestBound = updateBound(nodes[1], lastNodeLevel, levelBound, bestBound)
-      if isBinary(nodes[1].model, binaryIndices)
-        # Relaxed solution is binary: optimal solution -- don't branch
-        if nodes[1].model.objVal < bestVal
-          bestVal = nodes[1].model.objVal
-          m.colVal = copy(nodes[1].model.colVal)
-          flagOpt = 1
-          binarySolutions+=1
+    # Check node lower bound. If greater than current best UB, prune by limit
+    if nodes[1].model.objVal <= bestVal
+      status = solve(nodes[1].model)
+      if status == :Optimal
+        bestBound = minimum(obtainBoundList(nodes))
+        if isBinary(nodes[1].model, binaryIndices)
+          # Relaxed solution is binary: optimal solution -- don't branch
+          if nodes[1].model.objVal < bestVal
+            bestVal = nodes[1].model.objVal
+            m.colVal = copy(nodes[1].model.colVal)
+            flagOpt = 1
+            binarySolutions+=1
+          end
+        elseif nodes[1].model.objVal <= bestVal
+          # Relaxed solution is not binary and should not be pruned by limit -- branch
+          (leftChild, rightChild) = branch(nodes[1], binaryIndices)
+          push!(nodes, leftChild)
+          push!(nodes, rightChild)
         end
-      elseif nodes[1].model.objVal <= bestVal
-        # Relaxed solution is not binary and should not be pruned by limit -- branch
-        (leftChild, rightChild) = branch(nodes[1], binaryIndices)
-        push!(nodes, leftChild)
-        push!(nodes, rightChild)
       end
     end
     lastNodeLevel = nodes[1].level
     deleteat!(nodes, 1)
     iter+=1
 
-    println("UB: $bestVal")
-    println("LB: $bestBound")
+    if iter == 1 || iter%10 == 0
+      println("UB: $bestVal")
+      println("LB: $bestBound")
+    end
   end
 
   if flagConverted == 1
