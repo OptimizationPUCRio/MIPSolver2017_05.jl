@@ -76,9 +76,8 @@ function solveMIP(m::JuMP.Model)
   binaryIndices = find(m.colCat .== :Bin)
   binarySolutions = 0
 
-  # Relax all variables; solve relaxed problem
-  m.colCat[:] = :Cont
-  status = solve(m)
+  # Solve linear relaxation
+  status = solve(m, relaxation=true)
   if status == :Optimal && isBinary(m, binaryIndices)
     # Solution of the relaxed problem is binary: optimal solution
     nodes = Vector{node}(0)
@@ -95,8 +94,8 @@ function solveMIP(m::JuMP.Model)
   iter = 0
   flagOpt = 0
   tol = 1e-5
-  jg_time0 = time_ns()
-  while !isempty(nodes) && abs(bestVal - bestBound) > tol && (time_ns()-jg_time0)/1e9 < 180
+  time0 = time_ns()
+  while !isempty(nodes) && abs(bestVal - bestBound) > tol && (time_ns()-time0)/1e9 < 600
     if iter == 0
       iter = 1
       continue
@@ -140,9 +139,6 @@ function solveMIP(m::JuMP.Model)
     m.objVal = bestVal
     m.objBound = bestBound
   end
-
-  # Return binary variables to original state
-  m.colCat[binaryIndices] = :Bin
 
   # Outputs
   m.ext[:status] = status

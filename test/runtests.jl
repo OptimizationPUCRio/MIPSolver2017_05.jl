@@ -1,9 +1,9 @@
-using Base.Test, JuMP, CPLEX
+using Base.Test, JuMP, Gurobi
 
 include("../MIPTests.jl/miptests.jl")
 include("../src/branch_and_bound.jl")
 
-solver = CplexSolver()
+solver = GurobiSolver(OutputFlag=0)
 
 test1(solveMIP, solver) # 2/2
 test2(solveMIP, solver) # 2/2
