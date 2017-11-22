@@ -93,9 +93,9 @@ function solveMIP(m::JuMP.Model)
 
   iter = 0
   flagOpt = 0
-  tol = 1e-5
+  tol = 0.01 # Tolerance (%)
   time0 = time_ns()
-  while !isempty(nodes) && abs(bestVal - bestBound) > tol && (time_ns()-time0)/1e9 < 600
+  while !isempty(nodes) && abs((bestVal - bestBound)/bestVal) > tol && (time_ns()-time0)/1e9 < 600
     if iter == 0
       iter = 1
       continue
